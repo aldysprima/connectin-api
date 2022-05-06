@@ -6,10 +6,13 @@ const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
 
+/////////////////////////////////////
+///////////AUTH USER/////////////
+/////////////////////////////////////
+
 ///////////REGISTER USER/////////////
 module.exports.registerUser = async (req, res) => {
   const { username, email, password, confirm_password } = req.body;
-
   try {
     // 1. verify password & confirm password
     if (password !== confirm_password) {
@@ -23,36 +26,24 @@ module.exports.registerUser = async (req, res) => {
       console.log(error);
       return res.status(400).send(error.details[0].message);
     }
-
     // 3. Verify if username is unique
     const CHECK_USERNAME = `select * from users where username = ?`;
     const [USERNAME] = await database.execute(CHECK_USERNAME, [username]);
     if (USERNAME.length) {
       return res.status(400).send("Username has already exists");
     }
-
     // 4. Verify if email is unique
     const CHECK_EMAIL = `select * from users where email = ?`;
     const [EMAIL] = await database.execute(CHECK_EMAIL, [email]);
     if (EMAIL.length) {
       return res.status(400).send("Email has already Taken");
     }
-
     // 5. Generate uuid
-
     uid = uuid.v4();
-    console.log(req.body);
-
     // 6. Hash Password
     const salt = await bcrypt.genSalt(10);
-    console.log("Salt :", salt);
-
     const hashedPassword = await bcrypt.hash(password, salt);
-    console.log("plain password :", password);
-    console.log("Hashed Password :", hashedPassword);
-
     // 7. Do Query Insert to database
-
     const INSERT_USER = `insert into users(uid, username, email, password) values(?, ?, ?, ?)`;
     const [INFO] = await database.execute(INSERT_USER, [
       uid,
@@ -60,16 +51,13 @@ module.exports.registerUser = async (req, res) => {
       email,
       hashedPassword,
     ]);
-
     // 8. Create Web Token
     const token = jwt.sign({ username, email }, process.env.JWT_PASS, {
-      expiresIn: "120s",
+      expiresIn: "60s",
     });
-
     // 9. Store Tokens to our database
     const STORE_TOKEN = `insert into tokens(uid, jwt) values(?, ?)`;
     await database.execute(STORE_TOKEN, [uid, token]);
-
     // 10. send Email to the client
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -101,6 +89,75 @@ module.exports.registerUser = async (req, res) => {
     res.status(500).send("Internal service Error");
   }
 };
+
+///////////VERIFY USER ACCOUNT/////////////
+module.exports.verifyUser = async (req, res) => {
+  const token = req.body.token;
+  const uid = req.header("UID");
+
+  try {
+    // 1. TOKEN VALIDATION
+    const CHECK_TOKEN = `select * from tokens where uid = ? AND jwt = ?`;
+    const [TOKEN] = await database.execute(CHECK_TOKEN, [uid, token]);
+    if (!TOKEN.length) {
+      return res.status(404).send("Token Is Invalid");
+    } else {
+      try {
+        jwt.verify(token, process.env.JWT_PASS);
+      } catch (error) {
+        return res
+          .status(400)
+          .send(`An Error has occured: ${error.name} ${error.expiredAt}`);
+      }
+    }
+    // 2. CHANGE USER STATUS
+    const UPDATE_USER_STATUS = `update users set status = 1 where uid = ?`;
+    await database.execute(UPDATE_USER_STATUS, [uid]);
+    // 3. DELETE TOKEN
+    const DELETE_TOKEN = "delete from tokens where uid = ? and jwt = ?";
+    await database.execute(DELETE_TOKEN, [uid, token]);
+    // 4. CREATE RESPOND
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.log("error :", error);
+    return res.status(500).send("Internal service Error");
+  }
+};
+
+///////////REFRESH TOKEN/RESEND VERIFICATION EMAIL/////////////
+module.exports.refreshToken = async (req, res) => {
+  const token = req.body.token;
+  const uid = req.header("UID");
+
+  try {
+    // 1. CHECK IF THE TOKEN IS EXIST
+    const CHECK_TOKEN = `select * from tokens where uid = ? AND jwt = ?`;
+    const [TOKEN] = await database.execute(CHECK_TOKEN, [uid, token]);
+    if (!TOKEN.length) {
+      return res.status(404).send("Token Is Invalid");
+    }
+
+    // 2. IF EXIST, CREATE NEW TOKEN
+    const newToken = jwt.sign({ uid }, process.env.JWT_PASS, {
+      expiresIn: "120s",
+    });
+    const now = new Date();
+
+    // 3. UPDATE TO DATABASE
+    const UPDATE_TOKEN = `UPDATE tokens set jwt = ?, createdAt = ? where uid = ?`;
+    await database.execute(UPDATE_TOKEN, [newToken, now, uid]);
+
+    // 4. CREATE RESPOND
+    res.status(200).send(newToken);
+  } catch (error) {
+    console.log("error :", error);
+    return res.status(500).send("Internal service Error");
+  }
+};
+
+/////////////////////////////////////
+///////////RUD USER/////////////
+/////////////////////////////////////
 
 ///////////GET ALL USERS/////////////
 
@@ -137,39 +194,5 @@ module.exports.getUserById = async (req, res) => {
   } catch (error) {
     console.log("error :", error);
     res.status(500).send("Internal service Error");
-  }
-};
-
-///////////VERIFY USER ACCOUNT/////////////
-module.exports.verifyUser = async (req, res) => {
-  const token = req.body.token;
-  const uid = req.header("UID");
-
-  try {
-    // 1. TOKEN VALIDATION
-    const CHECK_TOKEN = `select * from tokens where uid = ? AND jwt = ?`;
-    const [TOKEN] = await database.execute(CHECK_TOKEN, [uid, token]);
-    if (!TOKEN.length) {
-      return res.status(404).send("Token Is Invalid");
-    } else {
-      try {
-        jwt.verify(token, process.env.JWT_PASS);
-      } catch (error) {
-        return res
-          .status(400)
-          .send(`An Error has occured: ${error.name} ${error.expiredAt}`);
-      }
-    }
-    // 3. CHANGE USER STATUS
-    const UPDATE_USER_STATUS = `update users set status = 1 where uid = ?`;
-    await database.execute(UPDATE_USER_STATUS, [uid]);
-    // 4. DELETE TOKEN
-    const DELETE_TOKEN = "delete from tokens where uid = ? and jwt = ?";
-    await database.execute(DELETE_TOKEN, [uid, token]);
-    // 5. CREATE RESPOND
-    return res.status(200).send("OK");
-  } catch (error) {
-    console.log("error :", error);
-    return res.status(500).send("Internal service Error");
   }
 };
