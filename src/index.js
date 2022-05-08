@@ -10,7 +10,7 @@ const app = express();
 
 // Config Middlewares
 app.use(express.json());
-app.use(cors({ exposedHeaders: "UID" }));
+app.use(cors({ exposedHeaders: ["UID", "Auth-Token"] }));
 
 // test database connection
 database.connect((error) => {

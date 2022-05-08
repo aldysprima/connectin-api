@@ -1,5 +1,9 @@
 const database = require("../config").promise();
-const { registerUserSchema } = require("../helpers/validation-schema");
+const {
+  registerUserSchema,
+  emailLoginSchema,
+  usernameLoginSchema,
+} = require("../helpers/validation-schema");
 
 const uuid = require("uuid");
 const bcrypt = require("bcrypt");
@@ -52,7 +56,7 @@ module.exports.registerUser = async (req, res) => {
       hashedPassword,
     ]);
     // 8. Create Web Token
-    const token = jwt.sign({ username, email }, process.env.JWT_PASS, {
+    const token = jwt.sign({ UID: uid }, process.env.JWT_PASS, {
       expiresIn: "120s",
     });
     // 9. Store Tokens to our database
@@ -140,8 +144,8 @@ module.exports.refreshToken = async (req, res) => {
         .send(`Please wait for ${remaining}s to refresh token`);
     }
 
-    // 3. IF EXIST, CREATE NEW TOKEN
-    const newToken = jwt.sign({ uid }, process.env.JWT_PASS, {
+    // 3. CREATE NEW TOKEN
+    const newToken = jwt.sign({ UID: uid }, process.env.JWT_PASS, {
       expiresIn: "120s",
     });
     const now = new Date();
@@ -170,6 +174,49 @@ module.exports.refreshToken = async (req, res) => {
     res
       .status(200)
       .send("Refresh Token has been sent. Kindly check your email");
+  } catch (error) {
+    console.log("error :", error);
+    return res.status(500).send("Internal service Error");
+  }
+};
+
+///////////LOGIN USER/////////////
+module.exports.loginUser = async (req, res) => {
+  const { user, password } = req.body;
+
+  try {
+    // 1. VALIDATE REQ BODY
+    if (user.includes("@")) {
+      const { error } = emailLoginSchema.validate(req.body);
+      if (error) {
+        console.log(error);
+        return res.status(400).send(error.details[0].message);
+      }
+    } else {
+      const { error } = usernameLoginSchema.validate(req.body);
+      if (error) {
+        console.log(error);
+        return res.status(400).send(error.details[0].message);
+      }
+    }
+    // 2. CHECK IF USER IS EXIST
+    const CHECK_USER = `select * from users where username = ? or email = ?`;
+    const [USER] = await database.execute(CHECK_USER, [user, user]);
+    if (!USER.length) {
+      return res.status(400).send("Username or Email not found");
+    }
+
+    // 3. IF USER EXIST, COMPARE PASSWORD
+    const valid = await bcrypt.compare(password, USER[0].password);
+    if (!valid) {
+      return res.status(400).send("Wrong Password!");
+    }
+
+    // 4. CREATE TOKEN
+    const token = jwt.sign({ uid: USER[0].uid }, process.env.JWT_PASS);
+    delete USER[0].password;
+
+    res.header("Auth-Token", `Bearer ${token}`).status(200).send(USER[0]);
   } catch (error) {
     console.log("error :", error);
     return res.status(500).send("Internal service Error");
