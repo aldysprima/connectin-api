@@ -129,17 +129,28 @@ module.exports.refreshToken = async (req, res) => {
       return res.status(404).send("Token Is Invalid");
     }
 
-    // 2. IF EXIST, CREATE NEW TOKEN
+    // 2. IF IT EXIST, IS IT ALREADY EXPIRED OR NOT?
+    const current = new Date().getTime();
+    const created = new Date(TOKEN[0].createdAt).getTime();
+    const step = current - created;
+    const remaining = Math.floor((120000 - step) / 1000);
+    if (step < 120000) {
+      return res
+        .status(400)
+        .send(`Please wait for ${remaining}s to refresh token`);
+    }
+
+    // 3. IF EXIST, CREATE NEW TOKEN
     const newToken = jwt.sign({ uid }, process.env.JWT_PASS, {
       expiresIn: "120s",
     });
     const now = new Date();
 
-    // 3. UPDATE TO DATABASE
+    // 4. UPDATE TO DATABASE
     const UPDATE_TOKEN = `UPDATE tokens set jwt = ?, createdAt = ? where uid = ?`;
     await database.execute(UPDATE_TOKEN, [newToken, now, uid]);
 
-    // 4. SEND NEW TOKEN TO CLIENT
+    // 5. SEND NEW TOKEN TO CLIENT
     const GET_USER_EMAIL = `SELECT email from users where uid = ?`;
     const [EMAIL] = await database.execute(GET_USER_EMAIL, [uid]);
 
@@ -155,7 +166,7 @@ module.exports.refreshToken = async (req, res) => {
       `,
     });
 
-    // 5. CREATE RESPOND
+    // 6. CREATE RESPOND
     res
       .status(200)
       .send("Refresh Token has been sent. Kindly check your email");
