@@ -223,6 +223,32 @@ module.exports.loginUser = async (req, res) => {
   }
 };
 
+///////////KEEP LOGIN/////////////
+module.exports.keepLogin = async (req, res) => {
+  const token = req.header("Auth-Token");
+
+  try {
+    // 1. CHECK IF REQ CONTAINS TOKEN
+    if (!token) {
+      return res.status(400).send("Unauthorized");
+    }
+    // 2. IF TOKEN EXIST, VALIDATE TOKEN
+    const { uid } = jwt.verify(token, process.env.JWT_PASS);
+    if (!uid) {
+      return res.status(400).send("Invalid Token");
+    }
+    // 3. IF TOKEN VALID, DO QUERY TO GET USER DATA
+    const GET_USER = `select * from users where uid = ?`;
+    const [USER] = await database.execute(GET_USER, [uid]);
+    // 4. CREATE RESPOND
+    delete USER[0].password;
+    return res.status(200).send(USER[0]);
+  } catch (error) {
+    console.log("error :", error);
+    return res.status(500).send("Internal service Error");
+  }
+};
+
 /////////////////////////////////////
 ///////////RUD USER/////////////
 /////////////////////////////////////
