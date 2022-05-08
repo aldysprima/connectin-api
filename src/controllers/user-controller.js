@@ -3,8 +3,8 @@ const { registerUserSchema } = require("../helpers/validation-schema");
 
 const uuid = require("uuid");
 const bcrypt = require("bcrypt");
-const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
+const transporter = require("../helpers/transporter");
 
 /////////////////////////////////////
 ///////////AUTH USER/////////////
@@ -53,23 +53,15 @@ module.exports.registerUser = async (req, res) => {
     ]);
     // 8. Create Web Token
     const token = jwt.sign({ username, email }, process.env.JWT_PASS, {
-      expiresIn: "60s",
+      expiresIn: "120s",
     });
     // 9. Store Tokens to our database
     const STORE_TOKEN = `insert into tokens(uid, jwt) values(?, ?)`;
     await database.execute(STORE_TOKEN, [uid, token]);
     // 10. send Email to the client
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "aldysprima.soc@gmail.com",
-        pass: process.env.MAIL_PASS,
-      },
-      tls: { rejectUnauthorized: false },
-    });
 
-    transporter.sendMail({
-      from: "aldysprima.soc@gmail.com",
+    await transporter.sendMail({
+      from: "'Connect.In' <aldysprima.soc@gmail.com>",
       to: email,
       subject: "Verify Your Newly-Created Connect.In Account ",
       html: `
@@ -117,7 +109,7 @@ module.exports.verifyUser = async (req, res) => {
     const DELETE_TOKEN = "delete from tokens where uid = ? and jwt = ?";
     await database.execute(DELETE_TOKEN, [uid, token]);
     // 4. CREATE RESPOND
-    return res.status(200).send("OK");
+    return res.status(200).send("Congratulations! Account has been verified");
   } catch (error) {
     console.log("error :", error);
     return res.status(500).send("Internal service Error");
@@ -147,8 +139,26 @@ module.exports.refreshToken = async (req, res) => {
     const UPDATE_TOKEN = `UPDATE tokens set jwt = ?, createdAt = ? where uid = ?`;
     await database.execute(UPDATE_TOKEN, [newToken, now, uid]);
 
-    // 4. CREATE RESPOND
-    res.status(200).send(newToken);
+    // 4. SEND NEW TOKEN TO CLIENT
+    const GET_USER_EMAIL = `SELECT email from users where uid = ?`;
+    const [EMAIL] = await database.execute(GET_USER_EMAIL, [uid]);
+
+    await transporter.sendMail({
+      from: "'Connect.In' <aldysprima.soc@gmail.com>",
+      to: EMAIL[0].email,
+      subject: "Verify Your Newly-Created Connect.In Account ",
+      html: `
+      <h1>Thanks For Signing Up for Connect.In!</h1>
+      <p>We're Happy that you're here. Let's get your account verified by clicking the link below</p>
+      <p>By Verifying your account, you get access to all of the features available on our Platform</p>
+      <p>${process.env.CLIENT_URL}/auth/activate/${newToken}</p>
+      `,
+    });
+
+    // 5. CREATE RESPOND
+    res
+      .status(200)
+      .send("Refresh Token has been sent. Kindly check your email");
   } catch (error) {
     console.log("error :", error);
     return res.status(500).send("Internal service Error");
