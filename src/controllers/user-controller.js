@@ -72,7 +72,7 @@ module.exports.registerUser = async (req, res) => {
       <h1>Thanks For Signing Up for Connect.In!</h1>
       <p>We're Happy that you're here. Let's get your account verified by clicking the link below</p>
       <p>By Verifying your account, you get access to all of the features available on our Platform</p>
-      <p>${process.env.CLIENT_URL}/auth/activate/${token}</p>
+      <p>${process.env.API_URL}/auth/verify/${token}</p>
       `,
     });
 
@@ -88,32 +88,42 @@ module.exports.registerUser = async (req, res) => {
 
 ///////////VERIFY USER ACCOUNT/////////////
 module.exports.verifyUser = async (req, res) => {
-  const token = req.body.token;
-  const uid = req.header("UID");
-
+  const token = req.params.token;
   try {
     // 1. TOKEN VALIDATION
-    const CHECK_TOKEN = `select * from tokens where uid = ? AND jwt = ?`;
-    const [TOKEN] = await database.execute(CHECK_TOKEN, [uid, token]);
+    const CHECK_TOKEN = `select * from tokens where jwt = ?`;
+    const [TOKEN] = await database.execute(CHECK_TOKEN, [token]);
     if (!TOKEN.length) {
       return res.status(404).send("Token Is Invalid");
     } else {
       try {
         jwt.verify(token, process.env.JWT_PASS);
       } catch (error) {
-        return res
-          .status(400)
-          .send(`An Error has occured: ${error.name} ${error.expiredAt}`);
+        return res.status(400).send(`
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;    background-color: #ecf0f1; height:100vh; width: 100vw;">
+              <h1 style="font-family: sans-serif; color:#2980b9">Uh-Oh</h1>
+              <p style="font-family: sans-serif; color: #3498db">Looks like your token is already expired.</p>
+              <p style="font-family: sans-serif; color: #3498db">Go to your profile to request new verification email</p>
+          </div>
+          `);
       }
     }
     // 2. CHANGE USER STATUS
     const UPDATE_USER_STATUS = `update users set status = 1 where uid = ?`;
-    await database.execute(UPDATE_USER_STATUS, [uid]);
+    await database.execute(UPDATE_USER_STATUS, [TOKEN[0].uid]);
     // 3. DELETE TOKEN
     const DELETE_TOKEN = "delete from tokens where uid = ? and jwt = ?";
-    await database.execute(DELETE_TOKEN, [uid, token]);
+    await database.execute(DELETE_TOKEN, [TOKEN[0].uid, token]);
     // 4. CREATE RESPOND
-    return res.status(200).send("Congratulations! Account has been verified");
+    return res.status(200).send(`
+      <div 
+      style="display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #ecf0f1; height:100vh; width: 100vw; "
+      >
+        <h1 style="font-family: sans-serif; color:#2980b9">Congratulations!</h1>
+        <p style="font-family: sans-serif; color: #3498db">Account Has Been Verified</p>
+        <a href="http://localhost:3000" style="font-family: sans-serif; color:#3498db; text-decoration: none">Login</a>
+      </div>
+    `);
   } catch (error) {
     console.log("error :", error);
     return res.status(500).send("Internal service Error");
@@ -166,7 +176,7 @@ module.exports.refreshToken = async (req, res) => {
       <h1>Thanks For Signing Up for Connect.In!</h1>
       <p>We're Happy that you're here. Let's get your account verified by clicking the link below</p>
       <p>By Verifying your account, you get access to all of the features available on our Platform</p>
-      <p>${process.env.CLIENT_URL}/auth/activate/${newToken}</p>
+      <p>${process.env.API_URL}/auth/verify/${newToken}</p>
       `,
     });
 
