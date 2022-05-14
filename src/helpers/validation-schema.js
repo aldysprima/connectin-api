@@ -35,3 +35,10 @@ module.exports.usernameLoginSchema = Joi.object({
     .minOfNumeric(1)
     .required(),
 });
+
+module.exports.updateProfileSchema = Joi.object({
+  username: Joi.string().min(6).max(13).alphanum(),
+  fullname: Joi.string().max(30),
+  bio: Joi.string().max(100),
+  address: Joi.string().max(100),
+});

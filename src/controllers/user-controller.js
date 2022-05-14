@@ -3,6 +3,7 @@ const {
   registerUserSchema,
   emailLoginSchema,
   usernameLoginSchema,
+  updateProfileSchema,
 } = require("../helpers/validation-schema");
 
 const uuid = require("uuid");
@@ -296,6 +297,53 @@ module.exports.getUserById = async (req, res) => {
     }
     delete USER[0].password;
     res.status(200).send(USER[0]);
+  } catch (error) {
+    console.log("error :", error);
+    res.status(500).send("Internal service Error");
+  }
+};
+
+///////////UPDATE USER PROFILE/////////////
+module.exports.updateUser = async (req, res) => {
+  const uid = req.params.uid;
+  const body = req.body;
+
+  try {
+    // 1. CHECK IF THE BODY IS EMPTY
+    const isEmpty = !Object.values(body).length;
+    if (isEmpty) {
+      return res.status(404).send("Please specify data you want to update");
+    }
+
+    // 2. VALIDATE REQ BODY
+    const { error } = updateProfileSchema.validate(body);
+    if (error) {
+      return res.status(404).send(error.details[0].message);
+    }
+
+    // 3. CHECK NEW USERNAME VALUE IF IT CONTAINS IN REQ.BODY
+
+    if (body.username) {
+      const CHECK_USERNAME = `Select * from users where username = ?`;
+      const [USERNAME] = await database.execute(CHECK_USERNAME, [
+        body.username,
+      ]);
+      if (USERNAME.length) {
+        return res.status(400).send("Username is already exist");
+      }
+    }
+
+    // 4. DEFINE QUERY UPDATE
+    let values = [];
+    for (let key in body) {
+      values.push(`${key} = '${body[key]}'`);
+    }
+
+    const UPDATE_USER = `update users set ${values} where uid = ? `;
+    await database.execute(UPDATE_USER, [uid]);
+
+    // SEND RESPOND
+    res.status(200).send("Data Has Been Updated");
   } catch (error) {
     console.log("error :", error);
     res.status(500).send("Internal service Error");

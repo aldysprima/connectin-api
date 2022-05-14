@@ -8,6 +8,7 @@ const authorize = require("../helpers/authorize");
 routers.post("/users/register", users.registerUser);
 routers.get("/users/getuser", authorize, users.getUser);
 routers.get("/users/getuserbyid/:uid", users.getUserById);
+routers.patch("/users/updateprofile/:uid", users.updateUser);
 routers.get("/auth/verify/:token", users.verifyUser);
 routers.get("/auth/refresh-token", users.refreshToken);
 routers.post("/auth/login", users.loginUser);
