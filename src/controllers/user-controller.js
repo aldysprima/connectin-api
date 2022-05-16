@@ -133,13 +133,14 @@ module.exports.verifyUser = async (req, res) => {
 
 ///////////REFRESH TOKEN/RESEND VERIFICATION EMAIL/////////////
 module.exports.refreshToken = async (req, res) => {
-  const token = req.body.token;
+  // const token = req.header("auth-token")
   const uid = req.header("UID");
 
   try {
     // 1. CHECK IF THE TOKEN IS EXIST
-    const CHECK_TOKEN = `select * from tokens where uid = ? AND jwt = ?`;
-    const [TOKEN] = await database.execute(CHECK_TOKEN, [uid, token]);
+    // const CHECK_TOKEN = `select * from tokens where uid = ? AND jwt = ?`;
+    const CHECK_TOKEN = `select * from tokens where uid = ?`;
+    const [TOKEN] = await database.execute(CHECK_TOKEN, [uid]);
     if (!TOKEN.length) {
       return res.status(404).send("Token Is Invalid");
     }
