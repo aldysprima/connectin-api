@@ -29,6 +29,7 @@ app.get("/", (req, res) =>
 const routers = require("./routers");
 
 app.use("/api", routers.userRouter);
+app.use("/api", routers.resetPasswordRouter);
 
 // binding to local port
 const PORT = process.env.PORT;
