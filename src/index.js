@@ -8,6 +8,9 @@ const database = require("./config");
 // Define Main App
 const app = express();
 
+// Open Access to public folder
+app.use(express.static("public"));
+
 // Config Middlewares
 app.use(express.json());
 app.use(cors({ exposedHeaders: ["UID", "Auth-Token"] }));

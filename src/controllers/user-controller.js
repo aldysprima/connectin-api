@@ -350,3 +350,25 @@ module.exports.updateUser = async (req, res) => {
     res.status(500).send("Internal service Error");
   }
 };
+
+///////////ADD PROFILE PICTURE/////////////
+
+module.exports.AddProfilePicture = async (req, res) => {
+  const uid = req.params.uid;
+  try {
+    if (!req.file) {
+      return res.status(400).send("File Not Found");
+    }
+
+    // Insert to Database
+    const ADD_PROFILE_PICTURE = `update users set profilepicture = '/profiles/${req.file.filename}' 
+    where uid = ?`;
+
+    await database.execute(ADD_PROFILE_PICTURE, [uid]);
+
+    res.status(200).send("Image Successfully Uploaded");
+  } catch (error) {
+    console.log("error :", error);
+    res.status(500).send("Internal service Error");
+  }
+};
